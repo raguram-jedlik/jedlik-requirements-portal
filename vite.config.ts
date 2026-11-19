@@ -13,4 +13,11 @@ export default defineConfig({
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },
+  server: {
+    proxy: {
+      // Dev convenience: forward /api to the local function runner
+      // (node server/standalone.mjs) so local testing hits the same path.
+      '/api': 'http://127.0.0.1:8787',
+    },
+  },
 });
