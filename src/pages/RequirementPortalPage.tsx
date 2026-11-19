@@ -454,17 +454,22 @@ const RequirementPortalPage = () => {
   const handleSubmit = async () => {
     setError('');
     setSubmitting(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
     try {
       const res = await fetch(SUBMIT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildPayload()),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(`Submit failed with status ${res.status}`);
     } catch {
       setError('Something went wrong while submitting. Please try again, or email us at info@jedlik.in.');
       setSubmitting(false);
       return;
+    } finally {
+      clearTimeout(timer);
     }
     setSubmitted(true);
     setSubmitting(false);

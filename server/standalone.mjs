@@ -10,6 +10,10 @@ import { submitRequirement, deferDetached } from './submitHandler.ts';
 
 const port = Number(process.env.PORT || 8787);
 
+// Hard body cap: the stored full_payload makes unbounded bodies an
+// amplification risk.
+const MAX_BODY_BYTES = 262144;
+
 function send(res, status, payload) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(payload));
@@ -31,13 +35,26 @@ const server = http.createServer(async (req, res) => {
   try {
     raw = await new Promise((resolve, reject) => {
       let data = '';
-      req.on('data', (c) => {
+      let size = 0;
+      const onData = (c) => {
+        size += c.length;
+        if (size > MAX_BODY_BYTES) {
+          req.removeListener('data', onData);
+          req.resume(); // discard the remainder
+          reject(Object.assign(new Error('payload too large'), { code: 'PAYLOAD_TOO_LARGE' }));
+          return;
+        }
         data += c;
-      });
+      };
+      req.on('data', onData);
       req.on('end', () => resolve(data));
       req.on('error', reject);
     });
-  } catch {
+  } catch (err) {
+    if (err && err.code === 'PAYLOAD_TOO_LARGE') {
+      send(res, 413, { error: 'payload too large' });
+      return;
+    }
     send(res, 400, { error: 'malformed JSON body' });
     return;
   }
@@ -49,7 +66,7 @@ const server = http.createServer(async (req, res) => {
     send(res, 400, { error: 'malformed JSON body' });
     return;
   }
-  if (body === null || typeof body !== 'object') {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
     send(res, 400, { error: 'malformed JSON body' });
     return;
   }
@@ -63,7 +80,7 @@ const server = http.createServer(async (req, res) => {
       send(res, 201, { id: result.id, created_at: result.created_at });
     } else {
       console.log(`[req] ${result.status} ${result.error}`);
-      send(res, result.status, { error: result.error });
+      send(res, result.status, { error: result.error, invalid: result.invalid });
     }
   } catch (err) {
     console.error('[req] submit error:', err);

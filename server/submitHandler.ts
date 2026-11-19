@@ -23,6 +23,8 @@ export interface SubmitFailure {
   ok: false;
   status: 400 | 500;
   error: string;
+  /** Field names rejected by numeric range validation (400 only). */
+  invalid?: string[];
 }
 
 export type SubmitResult = SubmitSuccess | SubmitFailure;
@@ -39,11 +41,12 @@ export const deferDetached: DeferWork = (fn) => {
   void Promise.resolve().then(fn).catch(() => undefined);
 };
 
-// Required non-empty fields: the 32 always-required text/choice fields of the
-// 35-field form. The three numeric fields (pilot_quantity, scale_quantity,
-// budget_per_unit) are nullable and coerced with `Number(v) || null`; and
-// voltage_architecture is only required when battery_type === 'fixed' (it is
-// stored as '' otherwise — the conditional field rule).
+// Required non-empty fields: the 31 always-required (voltage_architecture is
+// conditional) text/choice fields of the 35-field form. The three numeric
+// fields (pilot_quantity, scale_quantity, budget_per_unit) are nullable and
+// coerced with `Number(v) || null`; and voltage_architecture is only required
+// when battery_type === 'fixed' (it is stored as '' otherwise — the
+// conditional field rule).
 const REQUIRED_KEYS = [
   'contactName',
   'companyName',
@@ -107,6 +110,33 @@ export async function submitRequirement(
     return { ok: false, status: 400, error: `missing required fields: ${missing.join(', ')}` };
   }
 
+  // Numeric range validation (schema.sql): numeric(12,2) for pilot/scale
+  // quantities, numeric(14,2) for budget_per_unit. Reject non-finite values
+  // ('1e309' -> Infinity), negatives, and values beyond the column precision
+  // with a 400 naming the fields, instead of letting them die at INSERT as a
+  // generic 500 (which loses the submission). The `Number(v) || null` quirk
+  // above still maps 0/junk to NULL.
+  const NUMERIC_LIMITS: Record<string, number> = {
+    pilotQuantity: 9999999999.99,
+    scaleQuantity: 9999999999.99,
+    budgetPerUnit: 999999999999.99,
+  };
+  const numericValues: Record<string, number | null> = {};
+  const invalid: string[] = [];
+  for (const [key, max] of Object.entries(NUMERIC_LIMITS)) {
+    const n = num(body[key]);
+    numericValues[key] = n;
+    if (n !== null && (!Number.isFinite(n) || n < 0 || n > max)) invalid.push(key);
+  }
+  if (invalid.length > 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: `invalid numeric fields: ${invalid.join(', ')}`,
+      invalid,
+    };
+  }
+
   // Conditional field rule: voltage_architecture must be '' unless
   // battery_type === 'fixed'. full_payload keeps the body verbatim.
   const voltageArchitecture = isFixedBattery ? txt(body.voltageArchitecture) : '';
@@ -125,7 +155,7 @@ export async function submitRequirement(
       autonomous, vinyl_sticker, full_payload
     ) VALUES (
       ${txt(body.contactName)}, ${txt(body.companyName)}, ${txt(body.email)},
-      ${num(body.pilotQuantity)}, ${num(body.scaleQuantity)}, ${txt(body.pilotTimeline)}, ${txt(body.scaleTimeline)}, ${num(body.budgetPerUnit)},
+      ${numericValues.pilotQuantity}, ${numericValues.scaleQuantity}, ${txt(body.pilotTimeline)}, ${txt(body.scaleTimeline)}, ${numericValues.budgetPerUnit},
       ${txt(body.topSpeed)}, ${txt(body.range)}, ${txt(body.storageSize)}, ${txt(body.overallSize)}, ${txt(body.groundClearance)},
       ${txt(body.batteryType)}, ${voltageArchitecture}, ${txt(body.chargingTime)}, ${txt(body.temperatureRange)}, ${txt(body.loadCapacity)},
       ${txt(body.bodyStyle)}, ${txt(body.needApp)}, ${txt(body.landscape)}, ${txt(body.coldStorage)},
@@ -135,6 +165,7 @@ export async function submitRequirement(
     )
     RETURNING id, created_at
   `;
+  if (!rows[0]) throw new Error('insert returned no row');
   const row = rows[0] as { id: string; created_at: string };
 
   // --- notification email (deferred: the 201 goes out first) -------------
