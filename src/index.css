@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 0 85% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 70%;
+    --accent: 0 75% 40%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 0 85% 50%;
+    --radius: 0.75rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.35);
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer components {
+  .glow-primary {
+    background: radial-gradient(
+      ellipse 80% 60% at 50% 0%,
+      hsl(var(--primary) / 0.18),
+      transparent 70%
+    );
+  }
+
+  .grid-backdrop {
+    background-image:
+      linear-gradient(to right, hsl(var(--primary) / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--primary) / 0.05) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: linear-gradient(to bottom, black, transparent 75%);
+  }
+
+  .card-glow {
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.12),
+      0 18px 50px -24px hsl(var(--primary) / 0.35);
+  }
+}
+
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.35rem;
+  width: 1.35rem;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  border: 2px solid hsl(var(--background));
+  box-shadow: 0 0 14px hsl(var(--primary) / 0.9);
+  transition: transform 0.15s ease;
+}
+
+input[type='range']::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+input[type='range']::-moz-range-thumb {
+  height: 1.35rem;
+  width: 1.35rem;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  border: 2px solid hsl(var(--background));
+  box-shadow: 0 0 14px hsl(var(--primary) / 0.9);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.7);
+}
