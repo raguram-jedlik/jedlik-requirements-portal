@@ -450,10 +450,82 @@ const RequirementPortalPage = () => {
     return data;
   };
 
+  /** Map the form answers onto the Google Sheet column names. */
+  const buildSheetRecord = (payload: Record<string, string>) => {
+    const yesNo = (v?: string) => {
+      if (!v) return '';
+      const s = v.trim().toLowerCase();
+      if (s === 'yes' || s === 'true' || s === '1') return 'Yes';
+      if (s === 'no' || s === 'false' || s === '0') return 'No';
+      return v;
+    };
+
+    const [tempMin, tempMax] = (payload.temperatureRange ?? '')
+      .split(/[–—-]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    return {
+      submitted_at: new Date().toISOString(),
+      name: payload.contactName ?? '',
+      company_name: payload.companyName ?? '',
+      email: payload.email ?? '',
+      pilot_quantity: payload.pilotQuantity ?? '',
+      scale_quantity: payload.scaleQuantity ?? '',
+      pilot_timeline: payload.pilotTimeline ?? '',
+      scale_timeline: payload.scaleTimeline ?? '',
+      budget_per_unit: payload.budgetPerUnit ?? '',
+      delivery_location: payload.deliveryLocation ?? '',
+      top_speed: payload.topSpeed ?? '',
+      range_km: payload.range ?? '',
+      storage_size: payload.storageSize ?? '',
+      vehicle_size: payload.overallSize ?? '',
+      ground_clearance: payload.groundClearance ?? '',
+      battery_type: payload.batteryType ?? '',
+      voltage_architecture: payload.voltageArchitecture ?? '',
+      body_style: payload.bodyStyle ?? '',
+      app_required: payload.needApp ?? '',
+      road_conditions: payload.landscape ?? '',
+      charging_time: payload.chargingTime ?? '',
+      temperature_min_c: tempMin ?? '',
+      temperature_max_c: tempMax ?? '',
+      load_capacity_kg: payload.loadCapacity ?? '',
+      cold_storage: payload.coldStorage ?? '',
+      point_of_contact: payload.pointOfContact ?? '',
+      delivery_basis: payload.deliveryBasis ?? '',
+      airbags: yesNo(payload.airbags),
+      abs: yesNo(payload.abs),
+      iot_enabled: yesNo(payload.iotEnabled),
+      seatbelt: yesNo(payload.seatbelt),
+      ac: yesNo(payload.ac),
+      pushback_seats: yesNo(payload.pushbackSeats),
+      v2x: yesNo(payload.v2x),
+      traction_control: yesNo(payload.tractionControl),
+      autonomous_vehicle: yesNo(payload.autonomous),
+      vinyl_branding: yesNo(payload.vinylSticker),
+      record_id: '',
+    };
+  };
+
   const handleSubmit = async () => {
     setError('');
     setSubmitting(true);
     const payload = buildPayload();
+
+    // The Google Sheet is the system of record. Push to Sheets FIRST so a
+    // submission is never lost because the database is paused or slow.
+    let sheetsOk = false;
+    try {
+      const { error: fnError } = await supabase.functions.invoke(
+        'sync-requirement-to-sheets',
+        { body: { record: buildSheetRecord(payload) } }
+      );
+      if (fnError) throw fnError;
+      sheetsOk = true;
+    } catch (e: any) {
+      console.error('Sheets sync failed, falling back to database:', e?.message);
+    }
+
     try {
       const { data, error: dbError } = await supabase
         .from('requirement_submissions')
@@ -500,22 +572,30 @@ const RequirementPortalPage = () => {
 
       if (dbError) throw new Error(dbError.message);
 
-      // Fire-and-forget: mirror the row into Google Sheets + notify the team.
-      supabase.functions
-        .invoke('sync-requirement', {
-          body: { recordId: data?.id, formData: payload },
-        })
-        .catch(() => undefined);
-
-      setSubmitted(true);
+      // If the Sheets call failed earlier, retry now that we have a row id.
+      if (!sheetsOk) {
+        supabase.functions
+          .invoke('sync-requirement-to-sheets', {
+            body: { record: { ...buildSheetRecord(payload), record_id: data?.id } },
+          })
+          .catch(() => undefined);
+      }
     } catch (e: any) {
-      setError(
-        e?.message ||
-          'Something went wrong while submitting. Please try again, or email us at info@jedlik.in.'
-      );
-    } finally {
-      setSubmitting(false);
+      if (!sheetsOk) {
+        setError(
+          e?.message ||
+            'Something went wrong while submitting. Please try again, or email us at info@jedlik.in.'
+        );
+        setSubmitting(false);
+        return;
+      }
+      // The row is safely in Google Sheets even though the database write
+      // failed, so the submission still counts.
+      console.error('Database insert failed but the sheet write succeeded:', e?.message);
     }
+
+    setSubmitted(true);
+    setSubmitting(false);
   };
 
   /* ---------------- SCREEN 1 : IDENTITY GATE ---------------- */
