@@ -52,7 +52,7 @@ function QuestionImage({ src, alt }: { src?: string; alt: string }) {
         src={src}
         alt={alt}
         loading="lazy"
-        className="w-full max-h-72 object-cover"
+        className="h-auto w-full object-contain"
       />
     </div>
   );
@@ -229,7 +229,7 @@ function Field({
                         src={o.image}
                         alt={o.label}
                         loading="lazy"
-                        className="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        className="h-auto w-full object-contain"
                       />
                       {active && (
                         <div className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-primary shadow-lg">

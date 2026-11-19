@@ -444,7 +444,7 @@ export const QUESTIONS: Question[] = [
     help: 'City, state and country of delivery.',
     type: 'textarea',
     section: 'delivery',
-    image: '/req-images/poc.jpg',
+    image: '/req-images/delivery-location.jpg',
     placeholder: 'e.g. Plant 4, Sanand, Gujarat, India',
     required: true,
   },
