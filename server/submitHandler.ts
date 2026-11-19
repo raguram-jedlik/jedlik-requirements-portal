@@ -4,9 +4,11 @@
 //   - api/requirements.ts    (Vercel serverless function)
 //   - server/standalone.mjs  (local E2E / possible self-host)
 //
-// Neon (Postgres) is the system of truth. After the row commits, a plain-text
-// notification email is sent on a best-effort basis (one retry) — a mail
-// failure is logged and never fails the visitor's request.
+// Neon (Postgres) is the system of truth. After the row commits, the success
+// result is returned immediately (the wrappers respond 201 right away) and a
+// plain-text notification email is sent via a deferred hook on a best-effort
+// basis (one retry) — a mail failure is logged and never fails the visitor's
+// request.
 
 import { neon } from '@neondatabase/serverless';
 import nodemailer from 'nodemailer';
@@ -24,6 +26,18 @@ export interface SubmitFailure {
 }
 
 export type SubmitResult = SubmitSuccess | SubmitFailure;
+
+/**
+ * Deferred-work hook passed in by each wrapper: called with a thunk after the
+ * INSERT commits; must not block the caller. Wrappers pass platform glue
+ * (Vercel `waitUntil`) or the default detached promise.
+ */
+export type DeferWork = (fn: () => void | Promise<void>) => void;
+
+/** Default defer: detached promise — never blocks the response. */
+export const deferDetached: DeferWork = (fn) => {
+  void Promise.resolve().then(fn).catch(() => undefined);
+};
 
 // Required non-empty fields: the 32 always-required text/choice fields of the
 // 35-field form. The three numeric fields (pilot_quantity, scale_quantity,
@@ -72,12 +86,16 @@ const num = (v: unknown): number | null => Number(v as never) || null;
 const txt = (v: unknown): string => (v ?? '') as string;
 
 /**
- * Validate + insert one requirement submission, then trigger the notification
- * email. Returns 201-equivalent data on success, or a status/error pair.
- * Never throws for validation problems; unexpected failures are surfaced as
- * a generic 500 by the wrappers.
+ * Validate + insert one requirement submission, then defer the notification
+ * email via `deferWork` so the response is never delayed by SMTP. Returns
+ * 201-equivalent data on success, or a status/error pair. Never throws for
+ * validation problems; unexpected failures are surfaced as a generic 500 by
+ * the wrappers.
  */
-export async function submitRequirement(body: Record<string, unknown>): Promise<SubmitResult> {
+export async function submitRequirement(
+  body: Record<string, unknown>,
+  options: { deferWork?: DeferWork } = {},
+): Promise<SubmitResult> {
   // --- validate ---------------------------------------------------------
   const missing: string[] = REQUIRED_KEYS.filter((k) => !isNonEmpty(body[k]));
   const batteryType = txt(body.batteryType);
@@ -119,10 +137,14 @@ export async function submitRequirement(body: Record<string, unknown>): Promise<
   `;
   const row = rows[0] as { id: string; created_at: string };
 
-  // --- notification email (best effort, one retry, never fatal) ----------
-  await sendNotification(row.id, body).catch((err) => {
-    console.error('[notify] unexpected failure (ignored):', err);
-  });
+  // --- notification email (deferred: the 201 goes out first) -------------
+  // Best effort, one retry, never fatal.
+  const deferWork = options.deferWork ?? deferDetached;
+  deferWork(() =>
+    sendNotification(row.id, body).catch((err) => {
+      console.error('[notify] unexpected failure (ignored):', err);
+    }),
+  );
 
   return { ok: true, id: row.id, created_at: row.created_at };
 }
@@ -149,9 +171,9 @@ async function sendNotification(id: string, body: Record<string, unknown>): Prom
     port,
     secure,
     auth: { user, pass: process.env.SMTP_PASS },
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 20_000,
+    connectionTimeout: 5_000,
+    greetingTimeout: 5_000,
+    socketTimeout: 10_000,
   });
 
   const g = (v: unknown): string => (isNonEmpty(v) ? String(v) : '-');

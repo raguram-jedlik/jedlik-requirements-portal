@@ -2,6 +2,7 @@
 // Thin HTTP wrapper around server/submitHandler.ts (the shared core).
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { waitUntil } from '@vercel/functions';
 import { submitRequirement } from '../server/submitHandler.ts';
 
 function send(res: ServerResponse, status: number, payload: unknown): void {
@@ -46,7 +47,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   try {
-    const result = await submitRequirement(parsed.value as Record<string, unknown>);
+    const result = await submitRequirement(parsed.value as Record<string, unknown>, {
+      // Vercel: keep the mail task alive after the response is flushed.
+      deferWork: (fn) => {
+        waitUntil(
+          Promise.resolve()
+            .then(fn)
+            .catch((err) => {
+              console.error('[notify] deferred work failed (ignored):', err);
+            }),
+        );
+      },
+    });
     if (result.ok) {
       send(res, 201, { id: result.id, created_at: result.created_at });
     } else {

@@ -6,7 +6,7 @@
 // Used for local E2E and as the possible self-host route (49.200.186.6).
 
 import http from 'node:http';
-import { submitRequirement } from './submitHandler.ts';
+import { submitRequirement, deferDetached } from './submitHandler.ts';
 
 const port = Number(process.env.PORT || 8787);
 
@@ -55,7 +55,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    const result = await submitRequirement(body);
+    // Detached-promise defer: plain Node keeps the process alive until the
+    // (best-effort) mail task settles, without delaying the 201.
+    const result = await submitRequirement(body, { deferWork: deferDetached });
     if (result.ok) {
       console.log(`[req] 201 ${result.id}`);
       send(res, 201, { id: result.id, created_at: result.created_at });
