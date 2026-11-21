@@ -29,3 +29,10 @@ dist-ssr
 
 # Vercel
 .vercel
+
+# graphify code graph
+# graph.json, manifest.json and .graphify_root are committed so the team can
+# query the graph; cache/ (version-pinned AST cache) and .graphify_analysis.json
+# (transient per-run analysis) stay local to avoid diff churn.
+graphify-out/cache/
+graphify-out/.graphify_analysis.json
