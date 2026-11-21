@@ -16,11 +16,23 @@ import { REQ_IMAGE_VARIANTS } from '@/data/reqImageVariants';
  * never advertise a srcset URL for a file that does not exist on disk.
  */
 
-/** Main question photo: max-w-4xl (896px) container, px-4, sm:pl-9 indent. */
-export const PHOTO_SIZES = '(min-width: 1024px) 804px, 100vw';
+/**
+ * Main question photo.
+ *
+ * The photo lives in a `max-w-4xl` (896px) container with `px-4`, inside a
+ * question card padded `p-5 sm:p-6` and indented `sm:pl-9`, inside a 1px
+ * bordered wrapper. Measured rendered CSS width: 776px at a 1280px viewport,
+ * 314px at a 390px viewport. The two calc() branches reproduce that.
+ */
+export const PHOTO_SIZES =
+  '(max-width: 639px) calc(100vw - 76px), (max-width: 896px) calc(100vw - 120px), 776px';
 
-/** imagechoice option thumbnail: small card in a 1/2/3 column grid. */
-export const THUMB_SIZES = '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw';
+/**
+ * imagechoice option thumbnail: one per column of a `sm:grid-cols-2` grid
+ * inside the same card, so roughly half the photo width (12px grid gap).
+ */
+export const THUMB_SIZES =
+  '(max-width: 639px) calc(100vw - 76px), (max-width: 896px) calc((100vw - 132px) / 2), 382px';
 
 interface ResponsiveImageProps {
   src: string;

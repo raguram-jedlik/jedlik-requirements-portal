@@ -113,12 +113,18 @@ def main() -> int:
             moved.append((name, "already in assets-unrendered/"))
 
     # ---- 2. dead assets (not referenced by the schema at all) -------------
+    # Generated variant files (<name>-<width>.jpg / .webp) are skipped here:
+    # they are build output of step 3, not source assets, and step 4 prunes
+    # the ones that are no longer expected. Without this skip the script
+    # would sweep its own output into assets-unrendered/ on every re-run.
     removed: list[tuple[str, str]] = []
     keep_md5 = {md5(UNRENDERED_DIR / Path(r).name) for r in unrendered if (UNRENDERED_DIR / Path(r).name).exists()}
     for p in present:
         if p.name in {Path(r).name for r in rendered}:
             continue
         if (UNRENDERED_DIR / p.name).exists():
+            continue
+        if re.match(r"^.+-\d+\.(jpg|webp)$", p.name):
             continue
         digest = md5(p)
         if digest in keep_md5:
