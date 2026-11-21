@@ -49,12 +49,12 @@ const helpBase = 'mt-1 text-xs text-muted-foreground leading-relaxed';
 function QuestionImage({ src, alt }: { src?: string; alt: string }) {
   if (!src) return null;
   return (
-    <div className="mt-4 overflow-hidden rounded-xl border border-primary/20 bg-background/40">
+    <div className="mt-4 mx-auto max-w-fit overflow-hidden rounded-xl border border-primary/20 bg-background/40">
       <ResponsiveImage
         src={src}
         alt={alt}
         sizes={PHOTO_SIZES}
-        className="h-auto w-full object-contain"
+        className="block h-auto w-auto max-h-[180px] max-w-full object-contain sm:max-h-[220px] lg:max-h-[260px]"
       />
     </div>
   );
