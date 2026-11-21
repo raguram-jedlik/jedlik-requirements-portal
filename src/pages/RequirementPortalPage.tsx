@@ -19,6 +19,9 @@ import {
 } from 'lucide-react';
 import { SECTIONS, questionsFor } from './requirementSchema';
 import type { SectionId, Question } from './requirementSchema';
+import { REQ_IMAGE_VARIANTS } from '../data/reqImageVariants';
+import type { ReqImageVariant } from '../data/reqImageVariants';
+import ResponsiveImage, { PHOTO_SIZES, THUMB_SIZES } from '@/components/ResponsiveImage';
 
 type Answers = Record<string, string>;
 
@@ -45,16 +48,99 @@ const helpBase = 'mt-1 text-xs text-muted-foreground leading-relaxed';
 /*  Building blocks                                                    */
 /* ------------------------------------------------------------------ */
 
-function QuestionImage({ src, alt }: { src?: string; alt: string }) {
-  if (!src) return null;
-  return (
-    <div className="mt-4 overflow-hidden rounded-xl border border-primary/20 bg-background/40">
+/* ------------------------------------------------------------------ */
+/*  Responsive images                                                  */
+/* ------------------------------------------------------------------ */
+
+/* Question photos fill the card body; imagechoice option photos sit in a 2-up grid. */
+const QUESTION_IMAGE_SIZES = '(max-width: 640px) 100vw, (max-width: 896px) 90vw, 776px';
+const OPTION_IMAGE_SIZES = '(max-width: 640px) 100vw, (max-width: 896px) 45vw, 390px';
+
+const IMG_CLASS = 'h-auto w-full object-contain';
+
+/**
+ * Build a srcset string from the generated manifest.
+ *
+ * WebP: one candidate per width (including the native width).
+ * JPEG: one candidate per width below the native width, plus the original
+ *       file (which IS the native-width JPEG) as the last candidate.
+ *
+ * Every path emitted here is produced by scripts/optimize_images.py and
+ * exists under public/req-images/.
+ */
+function buildSrcSet(
+  path: string,
+  variant: ReqImageVariant,
+  format: 'webp' | 'jpg',
+): string {
+  const base = path.replace(/\.[^./]+$/, '');
+  const parts: string[] = [];
+  for (const w of variant.widths) {
+    // There is no separate "<name>-<native>.jpg": the original file is the native JPEG.
+    if (format === 'jpg' && w >= variant.width) continue;
+    parts.push(`${base}-${w}.${format} ${w}w`);
+  }
+  if (format === 'jpg') parts.push(`${path} ${variant.width}w`);
+  return parts.join(', ');
+}
+
+/**
+ * Responsive <picture> driven by the auto-generated manifest.
+ * Explicit width/height reserve the box (no layout shift); decoding="async"
+ * keeps the main thread free; srcset/sizes serve a smaller candidate on
+ * small or low-DPR viewports instead of always downloading the original.
+ */
+function ResponsiveImage({
+  src,
+  alt,
+  sizes,
+  className = IMG_CLASS,
+}: {
+  src: string;
+  alt: string;
+  sizes: string;
+  className?: string;
+}) {
+  const variant = REQ_IMAGE_VARIANTS[src];
+  if (!variant) {
+    // Unknown asset: keep the plain <img> rather than emitting a broken srcset.
+    return (
       <img
         src={src}
         alt={alt}
         loading="lazy"
-        className="h-auto w-full object-contain"
+        decoding="async"
+        className={className}
       />
+    );
+  }
+  return (
+    <picture>
+      <source
+        type="image/webp"
+        srcSet={buildSrcSet(src, variant, 'webp')}
+        sizes={sizes}
+      />
+      <img
+        src={src}
+        srcSet={buildSrcSet(src, variant, 'jpg')}
+        sizes={sizes}
+        width={variant.width}
+        height={variant.height}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        className={className}
+      />
+    </picture>
+  );
+}
+
+function QuestionImage({ src, alt }: { src?: string; alt: string }) {
+  if (!src) return null;
+  return (
+    <div className="mt-4 overflow-hidden rounded-xl border border-primary/20 bg-background/40">
+      <ResponsiveImage src={src} alt={alt} sizes={QUESTION_IMAGE_SIZES} />
     </div>
   );
 }
@@ -226,10 +312,10 @@ function Field({
                 >
                   {o.image && (
                     <div className="relative overflow-hidden">
-                      <img
+                      <ResponsiveImage
                         src={o.image}
                         alt={o.label}
-                        loading="lazy"
+                        sizes={THUMB_SIZES}
                         className="h-auto w-full object-contain"
                       />
                       {active && (

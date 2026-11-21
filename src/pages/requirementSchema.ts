@@ -301,6 +301,9 @@ export const QUESTIONS: Question[] = [
         value: 'fixed',
         label: 'Fixed Battery',
         desc: 'Charged on-board via plug-in or dedicated bay.',
+        // Unrendered asset: this question is type 'radio', so the renderer draws text-only
+        // OptionChips and never fetches option images. The file lives in assets-unrendered/ —
+        // move it back to public/req-images/ if this question ever becomes 'imagechoice'.
         image: '/req-images/battery-fixed.jpg',
       },
       other('Other (please specify)'),
@@ -464,6 +467,9 @@ export const QUESTIONS: Question[] = [
     help: 'The Incoterm you want us to quote against.',
     type: 'radio',
     section: 'delivery',
+    // Unrendered assets: this question is type 'radio', so the renderer draws text-only
+    // OptionChips and never fetches option images. These files live in assets-unrendered/ —
+    // move them back to public/req-images/ if this question ever becomes 'imagechoice'.
     options: [
       {
         value: 'exw',
